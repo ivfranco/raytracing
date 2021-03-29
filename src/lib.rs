@@ -1,24 +1,66 @@
 //! A CPU-based ray tracer.
 
 #![deny(missing_docs)]
+#![allow(clippy::clippy::upper_case_acronyms)]
 
 /// A trait generalizing image file types.
-pub mod printer;
+pub mod builder;
 
-pub(crate) mod color;
+/// Color types and color constants.
+pub mod color;
+
+///
+pub mod ray;
 
 use derive_more::{Index, IndexMut};
 
-use std::ops::{Div, Mul, Neg};
+use std::{
+    fmt::{Debug, Display},
+    ops::{Div, Mul, Neg},
+};
 
-/// A vector with three components.
+/// The error type for image output operations. Error from std / third party crates is handled by
+/// `anyhow` thus not listed here.
+#[derive(thiserror::Error)]
+pub enum Error {
+    /// The number of pixels exceeded the capacity of the image builder.
+    #[error("Putting more pixels than the image builder can handle")]
+    ImageBufferOverflow,
+
+    /// Value of color channel is not in the range 0.0 .. 1.0.
+    #[error("Value of color channel not in range")]
+    ColorOutOfRange,
+}
+
+impl Debug for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        <Self as Display>::fmt(self, f)
+    }
+}
+
+/// A vector with 3 components.
 #[derive(Clone, Copy, Index, IndexMut)]
 pub struct Vec3([f64; 3]);
 
 impl Vec3 {
-    /// Initialize the vector with elements.
-    pub fn new(e0: f64, e1: f64, e2: f64) -> Self {
+    /// Initialize the vector with 3 components.
+    pub const fn new(e0: f64, e1: f64, e2: f64) -> Self {
         Self([e0, e1, e2])
+    }
+
+    /// Get the value of the first component of the vector.
+    pub fn x(self) -> f64 {
+        self[0]
+    }
+
+    /// Get the value of the second component of the vector.
+    pub fn y(self) -> f64 {
+        self[1]
+    }
+
+    /// Get the value of the third component of the vector.
+    pub fn z(self) -> f64 {
+        self[2]
     }
 
     /// Square norm of the vector.
@@ -82,6 +124,14 @@ impl Mul<f64> for Vec3 {
 
     fn mul(self, rhs: f64) -> Self::Output {
         Self([self[0] * rhs, self[1] * rhs, self[2] * rhs])
+    }
+}
+
+impl Mul<Vec3> for f64 {
+    type Output = Vec3;
+
+    fn mul(self, rhs: Vec3) -> Self::Output {
+        rhs * self
     }
 }
 
