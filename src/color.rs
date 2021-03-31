@@ -1,11 +1,11 @@
 use std::ops::Mul;
 
-use derive_more::{Add, Deref};
+use derive_more::{Add, AddAssign, Deref, Div};
 
 use crate::Vec3;
 
 /// A pixel with 3 color channels red, green and blue.
-#[derive(Deref, Clone, Copy, Add)]
+#[derive(Default, Deref, Clone, Copy, Add, AddAssign, Div)]
 pub struct Rgb(Vec3);
 
 impl Rgb {
@@ -28,6 +28,15 @@ impl Rgb {
     pub fn b(self) -> f64 {
         self[2]
     }
+
+    /// Return a color whose channels all have been clamped to the valid range.
+    pub fn clamp(self) -> Self {
+        Self::new(
+            self.r().clamp(0.0, 1.0),
+            self.g().clamp(0.0, 1.0),
+            self.b().clamp(0.0, 1.0),
+        )
+    }
 }
 
 impl Mul<Rgb> for f64 {
@@ -35,6 +44,33 @@ impl Mul<Rgb> for f64 {
 
     fn mul(self, rhs: Rgb) -> Self::Output {
         Rgb(self * rhs.0)
+    }
+}
+
+/// Accumulates information about feeded colors for later use.
+#[derive(Default)]
+pub struct RgbAccumulator {
+    sum: Rgb,
+    len: u32,
+}
+
+impl RgbAccumulator {
+    /// Initialize an empty accumulator.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Feed a color sample to the accumulator,
+    pub fn feed(&mut self, rgb: Rgb) {
+        self.sum += rgb;
+        self.len += 1;
+    }
+
+    /// Sample a reasonably representative color based on all the feeded colors.
+    /// TODO: more ergonomic value instead of arithmetic average
+    pub fn sample(&self) -> Rgb {
+        let rgb = self.sum / (self.len as f64);
+        rgb.clamp()
     }
 }
 

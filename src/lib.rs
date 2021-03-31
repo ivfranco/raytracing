@@ -15,6 +15,9 @@ pub mod ray;
 /// Objects that may be hit and reflect a ray.
 pub mod hittable;
 
+/// A camera from where all rays originate.
+pub mod camera;
+
 use derive_more::{Index, IndexMut};
 
 use std::{
@@ -42,13 +45,18 @@ impl Debug for Error {
 }
 
 /// A vector with 3 components.
-#[derive(Clone, Copy, Index, IndexMut)]
+#[derive(Default, Clone, Copy, Index, IndexMut)]
 pub struct Vec3([f64; 3]);
 
 impl Vec3 {
     /// Initialize the vector with 3 components.
     pub const fn new(e0: f64, e1: f64, e2: f64) -> Self {
         Self([e0, e1, e2])
+    }
+
+    /// The origin point (0, 0, 0).
+    pub const fn origin() -> Self {
+        Self::new(0.0, 0.0, 0.0)
     }
 
     /// Get the value of the first component of the vector.
@@ -142,6 +150,7 @@ impl Div<f64> for Vec3 {
     type Output = Self;
 
     fn div(self, rhs: f64) -> Self::Output {
+        assert!(rhs.abs() >= f64::EPSILON);
         Self([self[0] / rhs, self[1] / rhs, self[2] / rhs])
     }
 }

@@ -1,8 +1,10 @@
 use std::{fmt::Display, fs, path::Path, process};
 
+use rand::{Rng, SeedableRng};
 use raytracing::{
-    builder::{ImageBuilder, PNGBuilder, PPMBuilder},
-    color::{Rgb, LIGHTBLUE, WHITE},
+    builder::{ImageBuilder, PNGBuilder},
+    camera::Camera,
+    color::{Rgb, RgbAccumulator, LIGHTBLUE, WHITE},
     hittable::{Hittable, Sphere, World},
     ray::Ray,
     Vec3,
@@ -17,20 +19,11 @@ fn main() {
 fn exec() -> anyhow::Result<()> {
     // image dimensions
     let aspect_ratio = 16.0 / 9.0;
-    let image_width = 1920;
+    let image_width = 720;
     let image_height = (image_width as f64 / aspect_ratio) as u32;
 
-    // viewport dimensions
-    let viewport_height = 2.0;
-    let viewport_width = aspect_ratio * viewport_height;
     let focal_length = 1.0;
-
-    // camera position
-    let origin = Vec3::new(0.0, 0.0, 0.0);
-    let horizontal = Vec3::new(viewport_width, 0.0, 0.0);
-    let vertical = Vec3::new(0.0, viewport_height, 0.0);
-    let lower_left_corner =
-        origin - horizontal / 2.0 - vertical / 2.0 - Vec3::new(0.0, 0.0, focal_length);
+    let camera = Camera::new(aspect_ratio, focal_length);
 
     // geometries
     let sphere = Sphere {
@@ -48,23 +41,31 @@ fn exec() -> anyhow::Result<()> {
     world.add(ground.into());
 
     let mut image_builder = PNGBuilder::with_dimensions(image_width, image_height);
+    let mut rng = rand::rngs::StdRng::from_entropy();
+
+    const SAMPLE_PER_PIXEL: u32 = 100;
 
     for j in (0..image_height).rev() {
         for i in 0..image_width {
-            let direction = lower_left_corner
-                + (i as f64 / (image_width - 1) as f64) * horizontal
-                + (j as f64 / (image_height - 1) as f64) * vertical;
+            let mut acc = RgbAccumulator::new();
 
-            let ray = Ray::new(origin, direction);
+            for _ in 0..SAMPLE_PER_PIXEL {
+                let ray = camera.get_ray(
+                    (i as f64 + rng.gen::<f64>()) / (image_width - 1) as f64,
+                    (j as f64 + rng.gen::<f64>()) / (image_height - 1) as f64,
+                );
 
-            let pixel = if let Some(record) = world.hit(&ray, 0.0, 2.0) {
-                let normal = record.normal.normalized();
-                0.5 * Rgb::new(normal.x() + 1.0, normal.y() + 1.0, normal.z() + 1.0)
-            } else {
-                background(&ray)
-            };
+                let pixel = if let Some(record) = world.hit(&ray, 0.0, 2.0) {
+                    let normal = record.normal.normalized();
+                    0.5 * Rgb::new(normal.x() + 1.0, normal.y() + 1.0, normal.z() + 1.0)
+                } else {
+                    background(&ray)
+                };
 
-            image_builder.put(pixel)?;
+                acc.feed(pixel);
+            }
+
+            image_builder.put(acc.sample())?;
         }
     }
 
