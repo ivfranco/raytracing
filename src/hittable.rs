@@ -68,6 +68,12 @@ impl Hittable for HittableObject {
     }
 }
 
+impl From<Sphere> for HittableObject {
+    fn from(sphere: Sphere) -> Self {
+        Self::Sphere(sphere)
+    }
+}
+
 /// A sphere described by its center and radius.
 pub struct Sphere {
     /// Center of the sphere.
@@ -100,5 +106,47 @@ impl Hittable for Sphere {
             let normal = ray.at(root) - self.center;
             Some(HitRecord::new(&ray, root, normal))
         }
+    }
+}
+
+/// A collection of hittable objects.
+#[derive(Default)]
+pub struct World {
+    objects: Vec<HittableObject>,
+}
+
+impl World {
+    /// Initialize a new empty world.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add an hittable object to the world.
+    pub fn add(&mut self, obj: HittableObject) {
+        self.objects.push(obj);
+    }
+}
+
+impl Hittable for World {
+    fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
+        self.objects
+            .iter()
+            .filter_map(|obj| obj.hit(ray, t_min, t_max))
+            .min_by(|rec0, rec1| f64_cmp(rec0.t, rec1.t))
+    }
+}
+
+fn f64_cmp(a: f64, b: f64) -> std::cmp::Ordering {
+    use std::cmp::Ordering::*;
+
+    assert!(!a.is_nan());
+    assert!(!b.is_nan());
+
+    if a < b {
+        Less
+    } else if a > b {
+        Greater
+    } else {
+        Equal
     }
 }

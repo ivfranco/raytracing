@@ -1,9 +1,9 @@
 use std::{fmt::Display, fs, path::Path, process};
 
 use raytracing::{
-    builder::{ImageBuilder, PPMBuilder},
+    builder::{ImageBuilder, PNGBuilder, PPMBuilder},
     color::{Rgb, LIGHTBLUE, WHITE},
-    hittable::{Hittable, Sphere},
+    hittable::{Hittable, Sphere, World},
     ray::Ray,
     Vec3,
 };
@@ -17,7 +17,7 @@ fn main() {
 fn exec() -> anyhow::Result<()> {
     // image dimensions
     let aspect_ratio = 16.0 / 9.0;
-    let image_width = 400;
+    let image_width = 1920;
     let image_height = (image_width as f64 / aspect_ratio) as u32;
 
     // viewport dimensions
@@ -38,7 +38,16 @@ fn exec() -> anyhow::Result<()> {
         radius: 0.5,
     };
 
-    let mut ppm_builder = PPMBuilder::with_dimensions(image_width, image_height);
+    let ground = Sphere {
+        center: Vec3::new(0.0, -100.5, -1.0),
+        radius: 100.0,
+    };
+
+    let mut world = World::new();
+    world.add(sphere.into());
+    world.add(ground.into());
+
+    let mut image_builder = PNGBuilder::with_dimensions(image_width, image_height);
 
     for j in (0..image_height).rev() {
         for i in 0..image_width {
@@ -48,14 +57,14 @@ fn exec() -> anyhow::Result<()> {
 
             let ray = Ray::new(origin, direction);
 
-            let pixel = if let Some(record) = sphere.hit(&ray, 0.0, 2.0) {
+            let pixel = if let Some(record) = world.hit(&ray, 0.0, 2.0) {
                 let normal = record.normal.normalized();
                 0.5 * Rgb::new(normal.x() + 1.0, normal.y() + 1.0, normal.z() + 1.0)
             } else {
                 background(&ray)
             };
 
-            ppm_builder.put(pixel)?;
+            image_builder.put(pixel)?;
         }
     }
 
@@ -63,7 +72,7 @@ fn exec() -> anyhow::Result<()> {
         fs::create_dir("output")?;
     }
 
-    ppm_builder.output_to_file("output/raytrace.ppm")?;
+    image_builder.output_to_file("output/raytrace.png")?;
     Ok(())
 }
 

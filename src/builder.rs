@@ -5,8 +5,17 @@ use std::{
 };
 
 use anyhow::Context;
+use image::ImageEncoder;
 
 use crate::{color::Rgb, Error};
+
+fn cast_channel(channel: f64) -> anyhow::Result<u8> {
+    if (0.0..=1.0).contains(&channel) {
+        Ok((255.999 * channel) as u8)
+    } else {
+        Err(Error::ColorOutOfRange).context(channel)
+    }
+}
 
 /// An interface to put pixels on image one by one.
 pub trait ImageBuilder {
@@ -52,14 +61,6 @@ impl ImageBuilder for PPMBuilder {
     }
 
     fn put(&mut self, rgb: Rgb) -> anyhow::Result<()> {
-        fn cast(channel: f64) -> anyhow::Result<u8> {
-            if (0.0..=1.0).contains(&channel) {
-                Ok((255.999 * channel) as u8)
-            } else {
-                Err(Error::ColorOutOfRange).context(channel)
-            }
-        }
-
         if self.pixels.len() >= (self.width * self.height) as usize {
             return Err(Error::ImageBufferOverflow).with_context(|| {
                 format!(
@@ -69,9 +70,9 @@ impl ImageBuilder for PPMBuilder {
             });
         }
 
-        let ir = cast(rgb.r())?;
-        let ig = cast(rgb.g())?;
-        let ib = cast(rgb.b())?;
+        let ir = cast_channel(rgb.r())?;
+        let ig = cast_channel(rgb.g())?;
+        let ib = cast_channel(rgb.b())?;
 
         self.pixels.push([ir, ig, ib]);
         Ok(())
@@ -89,18 +90,49 @@ impl ImageBuilder for PPMBuilder {
     }
 }
 
+/// PNG lossless image format.
+pub struct PNGBuilder {
+    width: u32,
+    height: u32,
+    buf: Vec<u8>,
+}
+
+impl ImageBuilder for PNGBuilder {
+    fn with_dimensions(width: u32, height: u32) -> Self {
+        Self {
+            width,
+            height,
+            buf: Vec::with_capacity((width * height) as usize),
+        }
+    }
+
+    fn put(&mut self, rgb: Rgb) -> anyhow::Result<()> {
+        self.buf.push(cast_channel(rgb.r())?);
+        self.buf.push(cast_channel(rgb.g())?);
+        self.buf.push(cast_channel(rgb.b())?);
+        Ok(())
+    }
+
+    fn output<W: Write>(&self, writer: &mut W) -> anyhow::Result<()> {
+        let encoder = image::codecs::png::PngEncoder::new(writer);
+        encoder
+            .write_image(&self.buf, self.width, self.height, image::ColorType::Rgb8)
+            .context("Failed to encode png image")?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
 
     use super::*;
 
-    #[test]
-    fn ppm_gradient() {
+    fn gradient<B: ImageBuilder>() -> B {
         const WIDTH: u32 = 256;
         const HEIGHT: u32 = 256;
 
-        let mut builder = PPMBuilder::new(WIDTH, HEIGHT);
+        let mut builder = B::with_dimensions(WIDTH, HEIGHT);
 
         for j in 0..HEIGHT {
             for i in 0..WIDTH {
@@ -109,10 +141,28 @@ mod tests {
             }
         }
 
+        builder
+    }
+
+    #[test]
+    fn ppm_gradient() {
+        let builder = gradient::<PPMBuilder>();
+
         if !Path::new("output").is_dir() {
             fs::create_dir("output").unwrap();
         }
 
         builder.output_to_file("output/gradient.ppm").unwrap();
+    }
+
+    #[test]
+    fn png_gradient() {
+        let builder = gradient::<PNGBuilder>();
+
+        if !Path::new("output").is_dir() {
+            fs::create_dir("output").unwrap();
+        }
+
+        builder.output_to_file("output/gradient.png").unwrap();
     }
 }
