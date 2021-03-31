@@ -9,8 +9,11 @@ pub mod builder;
 /// Color types and color constants.
 pub mod color;
 
-///
+/// Ray in 3-dimensional space.
 pub mod ray;
+
+/// Objects that may be hit and reflect a ray.
+pub mod hittable;
 
 use derive_more::{Index, IndexMut};
 

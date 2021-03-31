@@ -3,6 +3,7 @@ use std::{fmt::Display, fs, path::Path, process};
 use raytracing::{
     builder::{ImageBuilder, PPMBuilder},
     color::{Rgb, LIGHTBLUE, WHITE},
+    hittable::{Hittable, Sphere},
     ray::Ray,
     Vec3,
 };
@@ -31,6 +32,12 @@ fn exec() -> anyhow::Result<()> {
     let lower_left_corner =
         origin - horizontal / 2.0 - vertical / 2.0 - Vec3::new(0.0, 0.0, focal_length);
 
+    // geometries
+    let sphere = Sphere {
+        center: Vec3::new(0.0, 0.0, -1.0),
+        radius: 0.5,
+    };
+
     let mut ppm_builder = PPMBuilder::with_dimensions(image_width, image_height);
 
     for j in (0..image_height).rev() {
@@ -41,7 +48,13 @@ fn exec() -> anyhow::Result<()> {
 
             let ray = Ray::new(origin, direction);
 
-            let pixel = background(&ray);
+            let pixel = if let Some(record) = sphere.hit(&ray, 0.0, 2.0) {
+                let normal = record.normal.normalized();
+                0.5 * Rgb::new(normal.x() + 1.0, normal.y() + 1.0, normal.z() + 1.0)
+            } else {
+                background(&ray)
+            };
+
             ppm_builder.put(pixel)?;
         }
     }
