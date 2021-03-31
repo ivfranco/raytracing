@@ -45,7 +45,7 @@ impl Debug for Error {
 }
 
 /// A vector with 3 components.
-#[derive(Default, Clone, Copy, Index, IndexMut)]
+#[derive(Debug, Default, Clone, Copy, Index, IndexMut, PartialEq)]
 pub struct Vec3([f64; 3]);
 
 impl Vec3 {
@@ -101,7 +101,13 @@ impl Vec3 {
 
     /// The unit vector pointing to the same direction.
     pub fn normalized(self) -> Self {
-        self / self.norm()
+        self.stretch(1.0)
+    }
+
+    /// Stretch the vector to a given norm.
+    pub fn stretch(self, norm: f64) -> Self {
+        assert_ne!(self, Vec3::origin());
+        self * (norm / self.norm())
     }
 }
 

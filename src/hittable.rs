@@ -1,10 +1,13 @@
+use rand::Rng;
+
 use crate::{ray::Ray, Vec3};
 
 /// Describles when, where and how a ray hit an object.
 pub struct HitRecord {
     /// Where did the ray hit the object.
     pub hit_at: Vec3,
-    /// The normal of the object at the hit point.
+    /// The normal of the object at the hit point. Always on the same side as the ray origin with
+    /// respect to the object surface.
     pub normal: Vec3,
     /// The ray parameter when the hit occurred.
     pub t: f64,
@@ -82,6 +85,20 @@ pub struct Sphere {
     pub radius: f64,
 }
 
+impl Sphere {
+    /// A random point on this sphere.
+    pub fn random_point_on_surface<R: Rng>(&self, rng: &mut R) -> Vec3 {
+        let p = loop {
+            let p = Vec3(rng.gen());
+            if p.norm_squared() < 1.0 {
+                break p;
+            }
+        };
+
+        self.radius * p.normalized() + self.center
+    }
+}
+
 impl Hittable for Sphere {
     fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
         let oc = ray.origin() - self.center;
@@ -122,8 +139,8 @@ impl World {
     }
 
     /// Add an hittable object to the world.
-    pub fn add(&mut self, obj: HittableObject) {
-        self.objects.push(obj);
+    pub fn add<O: Into<HittableObject>>(&mut self, obj: O) {
+        self.objects.push(obj.into());
     }
 }
 

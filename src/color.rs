@@ -62,19 +62,18 @@ impl RgbAccumulator {
 
     /// Feed a color sample to the accumulator,
     pub fn feed(&mut self, rgb: Rgb) {
-        self.sum += rgb;
+        self.sum += Rgb::new(rgb.r().powi(2), rgb.g().powi(2), rgb.b().powi(2));
         self.len += 1;
     }
 
     /// Sample a reasonably representative color based on all the feeded colors.
-    /// TODO: more ergonomic value instead of arithmetic average
     pub fn sample(&self) -> Rgb {
         let rgb = self.sum / (self.len as f64);
-        rgb.clamp()
+        Rgb::new(rgb.r().sqrt(), rgb.g().sqrt(), rgb.b().sqrt()).clamp()
     }
 }
 
-/// hex value: #
+/// hex value: #7FB2FF
 pub const LIGHTBLUE: Rgb = Rgb::new(0.5, 0.7, 1.0);
 /// hex value: #FFFFFF
 pub const WHITE: Rgb = Rgb::new(1.0, 1.0, 1.0);

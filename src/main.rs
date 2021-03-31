@@ -1,6 +1,6 @@
 use std::{fmt::Display, fs, path::Path, process};
 
-use rand::{Rng, SeedableRng};
+use rand::SeedableRng;
 use raytracing::{
     builder::{ImageBuilder, PNGBuilder},
     camera::Camera,
@@ -37,36 +37,30 @@ fn exec() -> anyhow::Result<()> {
     };
 
     let mut world = World::new();
-    world.add(sphere.into());
-    world.add(ground.into());
+    world.add(sphere);
+    world.add(ground);
 
     let mut image_builder = PNGBuilder::with_dimensions(image_width, image_height);
     let mut rng = rand::rngs::StdRng::from_entropy();
 
     const SAMPLE_PER_PIXEL: u32 = 100;
 
-    for j in (0..image_height).rev() {
-        for i in 0..image_width {
-            let mut acc = RgbAccumulator::new();
+    for sampler in camera.cast(image_width, image_height) {
+        let mut acc = RgbAccumulator::new();
 
-            for _ in 0..SAMPLE_PER_PIXEL {
-                let ray = camera.get_ray(
-                    (i as f64 + rng.gen::<f64>()) / (image_width - 1) as f64,
-                    (j as f64 + rng.gen::<f64>()) / (image_height - 1) as f64,
-                );
+        for _ in 0..SAMPLE_PER_PIXEL {
+            let ray = sampler.sample(&mut rng);
+            let pixel = if let Some(record) = world.hit(&ray, 0.0, 2.0) {
+                let normal = record.normal.normalized();
+                0.5 * Rgb::new(normal.x() + 1.0, normal.y() + 1.0, normal.z() + 1.0)
+            } else {
+                background(&ray)
+            };
 
-                let pixel = if let Some(record) = world.hit(&ray, 0.0, 2.0) {
-                    let normal = record.normal.normalized();
-                    0.5 * Rgb::new(normal.x() + 1.0, normal.y() + 1.0, normal.z() + 1.0)
-                } else {
-                    background(&ray)
-                };
-
-                acc.feed(pixel);
-            }
-
-            image_builder.put(acc.sample())?;
+            acc.feed(pixel);
         }
+
+        image_builder.put(acc.sample())?;
     }
 
     if !Path::new("output").is_dir() {
