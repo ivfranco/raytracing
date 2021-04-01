@@ -1,5 +1,3 @@
-use std::cell::Cell;
-
 use rand::Rng;
 
 use crate::{ray::Ray, Vec3};
@@ -33,7 +31,8 @@ impl Camera {
         }
     }
 
-    /// Cast a ray pointing to the given horizontal and vertical ratio of the viewport.
+    /// Cast a ray pointing to the given horizontal and vertical ratio of the viewport, Starting
+    /// from the bottom left corner.
     ///
     /// # Examples
     /// ```
@@ -50,7 +49,7 @@ impl Camera {
         Ray::new(self.camera_origin, direction)
     }
 
-    /// Scan the image pixel by pixel, row by row from the top to the bottom.
+    /// Scan the image pixel by pixel, row by row from bottom to top.
     pub fn cast(&self, pixel_width: u32, pixel_height: u32) -> RayCaster {
         RayCaster::new(self, pixel_width, pixel_height)
     }

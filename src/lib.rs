@@ -18,6 +18,12 @@ pub mod hittable;
 /// A camera from where all rays originate.
 pub mod camera;
 
+/// Materials with different optical properties.
+pub mod material;
+
+/// A collection of hittable objects and their materials.
+pub mod world;
+
 use derive_more::{Index, IndexMut};
 
 use std::{
@@ -57,6 +63,12 @@ impl Vec3 {
     /// The origin point (0, 0, 0).
     pub const fn origin() -> Self {
         Self::new(0.0, 0.0, 0.0)
+    }
+
+    /// Return whether the vector is very close to zero in all dimensions.
+    pub fn near_zero(self) -> bool {
+        const EPSILON: f64 = 1e-8;
+        self.0.iter().all(|&e| e < EPSILON)
     }
 
     /// Get the value of the first component of the vector.
@@ -108,6 +120,16 @@ impl Vec3 {
     pub fn stretch(self, norm: f64) -> Self {
         assert_ne!(self, Vec3::origin());
         self * (norm / self.norm())
+    }
+
+    /// Return whether the angle between the two vectors is smaller than 90 degree.
+    pub fn same_direction(self, other: Self) -> bool {
+        self.dot(other) > 0.0
+    }
+
+    /// Reflect this vector on a surface described by a normal.
+    pub fn reflect_on(self, normal: Vec3) -> Self {
+        self - 2.0 * self.dot(normal) * normal
     }
 }
 

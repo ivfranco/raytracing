@@ -1,6 +1,7 @@
 use crate::Vec3;
 
 /// A ray in 3-dimensional coordinate system.
+#[derive(Debug, Clone)]
 pub struct Ray {
     origin: Vec3,
     direction: Vec3,

@@ -47,6 +47,14 @@ impl Mul<Rgb> for f64 {
     }
 }
 
+impl Mul for Rgb {
+    type Output = Rgb;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self(self.0 * rhs.0)
+    }
+}
+
 /// Accumulates information about feeded colors for later use.
 #[derive(Default)]
 pub struct RgbAccumulator {
@@ -62,7 +70,7 @@ impl RgbAccumulator {
 
     /// Feed a color sample to the accumulator,
     pub fn feed(&mut self, rgb: Rgb) {
-        self.sum += Rgb::new(rgb.r().powi(2), rgb.g().powi(2), rgb.b().powi(2));
+        self.sum += rgb;
         self.len += 1;
     }
 
@@ -77,3 +85,5 @@ impl RgbAccumulator {
 pub const LIGHTBLUE: Rgb = Rgb::new(0.5, 0.7, 1.0);
 /// hex value: #FFFFFF
 pub const WHITE: Rgb = Rgb::new(1.0, 1.0, 1.0);
+/// hex value: #000000
+pub const BLACK: Rgb = Rgb::new(0.0, 0.0, 0.0);

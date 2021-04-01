@@ -6,8 +6,9 @@ use crate::{ray::Ray, Vec3};
 pub struct HitRecord {
     /// Where did the ray hit the object.
     pub hit_at: Vec3,
-    /// The normal of the object at the hit point. Always on the same side as the ray origin with
-    /// respect to the object surface.
+    /// The normal of the object at the hit point that's always
+    /// - on the same side as the ray origin with respect to the object surface
+    /// - normalized to unit norm
     pub normal: Vec3,
     /// The ray parameter when the hit occurred.
     pub t: f64,
@@ -16,7 +17,7 @@ pub struct HitRecord {
 }
 
 /// Where the normal points to.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Pointing {
     /// The normal points towards the inside of the object.
     Inward,
@@ -26,15 +27,15 @@ pub enum Pointing {
 
 impl HitRecord {
     fn new(ray: &Ray, t: f64, outward_normal: Vec3) -> Self {
-        let pointing = if ray.direction().dot(outward_normal) < 0.0 {
-            Pointing::Outward
-        } else {
+        let pointing = if ray.direction().same_direction(outward_normal) {
             Pointing::Inward
+        } else {
+            Pointing::Outward
         };
 
         let normal = match pointing {
-            Pointing::Inward => -outward_normal,
-            Pointing::Outward => outward_normal,
+            Pointing::Inward => -outward_normal.normalized(),
+            Pointing::Outward => outward_normal.normalized(),
         };
 
         Self {
@@ -86,15 +87,23 @@ pub struct Sphere {
 }
 
 impl Sphere {
+    /// An unit radius sphere at the origin point.
+    pub const fn unit() -> Self {
+        Self {
+            center: Vec3::origin(),
+            radius: 1.0,
+        }
+    }
+
+    /// A random point in this sphere.
+    pub fn random_point_in_sphere<R: Rng>(&self, rng: &mut R) -> Vec3 {
+        let p = random_unit(rng);
+        self.radius * p + self.center
+    }
+
     /// A random point on this sphere.
     pub fn random_point_on_surface<R: Rng>(&self, rng: &mut R) -> Vec3 {
-        let p = loop {
-            let p = Vec3(rng.gen());
-            if p.norm_squared() < 1.0 {
-                break p;
-            }
-        };
-
+        let p = random_unit(rng);
         self.radius * p.normalized() + self.center
     }
 }
@@ -109,61 +118,28 @@ impl Hittable for Sphere {
         let discriminant = half_b.powi(2) - a * c;
 
         if discriminant < 0.0 {
-            None
-        } else {
-            let sqrt_d = discriminant.sqrt();
-            let mut root = (-half_b - sqrt_d) / a;
-            if root < t_min || t_max < root {
-                root = (-half_b + sqrt_d) / a;
-                if root < t_min || t_max < root {
-                    return None;
-                }
-            }
-
-            let normal = ray.at(root) - self.center;
-            Some(HitRecord::new(&ray, root, normal))
+            return None;
         }
+
+        let sqrt_d = discriminant.sqrt();
+        let root = std::array::IntoIter::new([(-half_b - sqrt_d) / a, (-half_b + sqrt_d) / a])
+            .find(|&root| t_min <= root && root <= t_max)?;
+
+        let normal = ray.at(root) - self.center;
+        Some(HitRecord::new(&ray, root, normal))
     }
 }
 
-/// A collection of hittable objects.
-#[derive(Default)]
-pub struct World {
-    objects: Vec<HittableObject>,
-}
+fn random_unit<R: Rng>(rng: &mut R) -> Vec3 {
+    loop {
+        let p = Vec3::new(
+            rng.gen_range(-1.0..1.0),
+            rng.gen_range(-1.0..1.0),
+            rng.gen_range(-1.0..1.0),
+        );
 
-impl World {
-    /// Initialize a new empty world.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Add an hittable object to the world.
-    pub fn add<O: Into<HittableObject>>(&mut self, obj: O) {
-        self.objects.push(obj.into());
-    }
-}
-
-impl Hittable for World {
-    fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
-        self.objects
-            .iter()
-            .filter_map(|obj| obj.hit(ray, t_min, t_max))
-            .min_by(|rec0, rec1| f64_cmp(rec0.t, rec1.t))
-    }
-}
-
-fn f64_cmp(a: f64, b: f64) -> std::cmp::Ordering {
-    use std::cmp::Ordering::*;
-
-    assert!(!a.is_nan());
-    assert!(!b.is_nan());
-
-    if a < b {
-        Less
-    } else if a > b {
-        Greater
-    } else {
-        Equal
+        if p.norm_squared() < 1.0 {
+            return p;
+        }
     }
 }
