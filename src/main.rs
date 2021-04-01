@@ -1,7 +1,7 @@
 use std::{fmt::Display, fs, path::Path, process};
 
-use indicatif::ProgressBar;
-use rand::{Rng, SeedableRng};
+use rand::{rngs::StdRng, Rng, SeedableRng};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use raytracing::{
     builder::{ImageBuilder, PNGBuilder},
     camera::Camera,
@@ -12,7 +12,6 @@ use raytracing::{
     world::{HitEvent, World},
     Vec3,
 };
-use smallvec::SmallVec;
 
 fn main() {
     if let Err(e) = exec() {
@@ -73,30 +72,31 @@ fn exec() -> anyhow::Result<()> {
     };
 
     let mut image_builder = PNGBuilder::with_dimensions(image_width, image_height);
-    let mut rng = rand::rngs::StdRng::from_entropy();
 
     const SAMPLE_PER_PIXEL: u32 = 100;
 
     let instant = std::time::Instant::now();
-    let pixels = (image_width * image_height) as u64;
 
-    let mut progress = BufProgress::new(ProgressBar::new(pixels), 1000);
+    let samplers: Vec<_> = camera.cast(image_width, image_height).collect();
+    let pixels: Vec<_> = samplers
+        .par_iter()
+        .map(|sampler| {
+            let mut acc = RgbAccumulator::new();
+            let mut rng = StdRng::from_entropy();
 
-    for sampler in camera.cast(image_width, image_height) {
-        let mut acc = RgbAccumulator::new();
+            for _ in 0..SAMPLE_PER_PIXEL {
+                let ray = sampler.sample(&mut rng);
+                let pixel = ray_color(&mut rng, &ray, &world);
+                acc.feed(pixel);
+            }
 
-        for _ in 0..SAMPLE_PER_PIXEL {
-            let ray = sampler.sample(&mut rng);
-            let pixel = ray_color(&mut rng, &ray, &world);
-            acc.feed(pixel);
-        }
+            acc.sample()
+        })
+        .collect();
 
-        image_builder.put(acc.sample())?;
-
-        progress.inc(1);
+    for pixel in pixels {
+        image_builder.put(pixel)?;
     }
-
-    progress.finish();
 
     if !Path::new("output").is_dir() {
         fs::create_dir("output")?;
@@ -115,7 +115,7 @@ fn error_exit<T: Display>(err: T) {
 
 fn ray_color<R: Rng>(rng: &mut R, ray: &Ray, world: &World) -> Rgb {
     const MAXIMUM_REFLECTION: usize = 64;
-    let mut attenuations = SmallVec::<[Rgb; MAXIMUM_REFLECTION / 4]>::new();
+    let mut attenuations = Vec::with_capacity(MAXIMUM_REFLECTION);
 
     let mut reflect_cnt = 0;
     let mut ray = ray.clone();
@@ -151,36 +151,4 @@ fn background(ray: &Ray) -> Rgb {
     let unit_dir = ray.direction().normalized();
     let t = 0.5 * (unit_dir.y() + 1.0);
     (1.0 - t) * WHITE + t * LIGHTBLUE
-}
-
-/// Each direct increment to [indicatif::ProgressBar](indicatif::ProgressBar) acquires and releases
-/// an RwLock, without a buffer the process would be 40% slower.
-struct BufProgress {
-    inner: ProgressBar,
-    buffer_size: u64,
-    buffered_delta: u64,
-}
-
-impl BufProgress {
-    fn new(inner: ProgressBar, buf_size: u64) -> Self {
-        Self {
-            inner,
-            buffer_size: buf_size,
-            buffered_delta: 0,
-        }
-    }
-
-    fn inc(&mut self, delta: u64) {
-        self.buffered_delta += delta;
-        if self.buffered_delta >= self.buffer_size {
-            self.inner.inc(self.buffered_delta);
-            self.buffered_delta = 0;
-        }
-    }
-
-    fn finish(&mut self) {
-        self.inner.inc(self.buffered_delta);
-        self.buffered_delta = 0;
-        self.inner.finish();
-    }
 }

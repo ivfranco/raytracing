@@ -60,7 +60,7 @@ pub enum HittableObject {
     /// An sphere.
     Sphere(Sphere),
     /// A general [Hittable](Hittable) trait object.
-    Object(Box<dyn Hittable>),
+    Object(Box<dyn Hittable + Send + Sync>),
 }
 
 impl Hittable for HittableObject {

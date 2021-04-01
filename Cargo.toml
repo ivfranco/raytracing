@@ -12,5 +12,5 @@ derive_more = "0.99.13"
 image = { version = "^0.23", default_features = false, features = ["png"] }
 indicatif = "0.15.0"
 rand = "0.8.3"
-smallvec = "1.6.1"
+rayon = "1.5.0"
 thiserror = "1.0.24"
