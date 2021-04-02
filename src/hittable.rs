@@ -34,8 +34,8 @@ impl HitRecord {
         };
 
         let normal = match pointing {
-            Pointing::Inward => -outward_normal.normalized(),
-            Pointing::Outward => outward_normal.normalized(),
+            Pointing::Inward => -outward_normal,
+            Pointing::Outward => outward_normal,
         };
 
         Self {
@@ -125,7 +125,9 @@ impl Hittable for Sphere {
         let root = std::array::IntoIter::new([(-half_b - sqrt_d) / a, (-half_b + sqrt_d) / a])
             .find(|&root| t_min <= root && root <= t_max)?;
 
-        let normal = ray.at(root) - self.center;
+        // must be normalized here: radius may be negative as a trick to describe the hollow inside
+        // of a sphere
+        let normal = (ray.at(root) - self.center) / self.radius;
         Some(HitRecord::new(&ray, root, normal))
     }
 }

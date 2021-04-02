@@ -2,8 +2,6 @@ use rand::Rng;
 
 use crate::{ray::Ray, Vec3};
 
-const VIEWPORT_HEIGHT: f64 = 2.0;
-
 /// A camera that may cast rays into the world.
 pub struct Camera {
     camera_origin: Vec3,
@@ -15,11 +13,13 @@ pub struct Camera {
 impl Camera {
     /// Construct a camera with the given aspect ratio and focal length. The camera is located at
     /// the origin point (0, 0, 0);
-    pub fn new(aspect_ratio: f64, focal_length: f64) -> Self {
-        let camera_origin = Vec3::origin();
-        let viewport_height = VIEWPORT_HEIGHT;
-        let viewport_width = viewport_height * aspect_ratio;
+    pub fn new(v_fov: f64, aspect_ratio: f64, focal_length: f64) -> Self {
+        let theta = v_fov.to_radians();
+        let h = (theta / 2.0).tan();
+        let viewport_height = 2.0 * h;
+        let viewport_width = aspect_ratio * viewport_height;
 
+        let camera_origin = Vec3::origin();
         let viewport_origin =
             camera_origin - Vec3::new(viewport_width / 2.0, viewport_height / 2.0, focal_length);
 

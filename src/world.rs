@@ -46,7 +46,7 @@ impl World {
             })
             .min_by(|(record0, _), (record1, _)| f64_cmp(record0.t, record1.t))?;
 
-        let scatter = material.scatter(rng, ray, record.normal);
+        let scatter = material.scatter(rng, ray, &record);
 
         Some(HitEvent { record, scatter })
     }

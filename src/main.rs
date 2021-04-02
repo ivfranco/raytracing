@@ -7,7 +7,7 @@ use raytracing::{
     camera::Camera,
     color::{Rgb, RgbAccumulator, BLACK, LIGHTBLUE, WHITE},
     hittable::Sphere,
-    material::{Lambertian, Metal},
+    material::{Dielectric, Lambertian, Metal},
     ray::Ray,
     world::{HitEvent, World},
     Vec3,
@@ -26,7 +26,7 @@ fn exec() -> anyhow::Result<()> {
     let image_height = (image_width as f64 / aspect_ratio) as u32;
 
     let focal_length = 1.0;
-    let camera = Camera::new(aspect_ratio, focal_length);
+    let camera = Camera::new(90.0, aspect_ratio, focal_length);
 
     // geometries
     let world = {
@@ -47,16 +47,27 @@ fn exec() -> anyhow::Result<()> {
                 center: Vec3::new(0.0, 0.0, -1.0),
                 radius: 0.5,
             },
-            Lambertian::new(Rgb::new(0.7, 0.3, 0.3)),
+            Lambertian::new(Rgb::new(0.1, 0.2, 0.5)),
         );
 
-        // left metal sphere
+        let left_material = Dielectric::new(1.5);
+
+        // left dielectric sphere
         world.add(
             Sphere {
                 center: Vec3::new(-1.0, 0.0, -1.0),
                 radius: 0.5,
             },
-            Metal::new(Rgb::new(0.8, 0.8, 0.8), 0.3),
+            left_material,
+        );
+
+        // hollow core of left dielectric sphere
+        world.add(
+            Sphere {
+                center: Vec3::new(-1.0, 0.0, -1.0),
+                radius: -0.4,
+            },
+            left_material,
         );
 
         // right metal sphere
@@ -65,7 +76,7 @@ fn exec() -> anyhow::Result<()> {
                 center: Vec3::new(1.0, 0.0, -1.0),
                 radius: 0.5,
             },
-            Metal::new(Rgb::new(0.8, 0.6, 0.2), 1.0),
+            Metal::new(Rgb::new(0.8, 0.6, 0.2), 0.0),
         );
 
         world

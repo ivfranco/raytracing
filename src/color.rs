@@ -1,11 +1,12 @@
 use std::ops::Mul;
 
-use derive_more::{Add, AddAssign, Deref, Div};
+use derive_more::{Add, AddAssign, Deref, Div, Mul};
 
 use crate::Vec3;
 
 /// A pixel with 3 color channels red, green and blue.
-#[derive(Default, Deref, Clone, Copy, Add, AddAssign, Div)]
+#[derive(Default, Deref, Clone, Copy, Add, AddAssign, Div, Mul)]
+#[mul(forward)]
 pub struct Rgb(Vec3);
 
 impl Rgb {
@@ -44,14 +45,6 @@ impl Mul<Rgb> for f64 {
 
     fn mul(self, rhs: Rgb) -> Self::Output {
         Rgb(self * rhs.0)
-    }
-}
-
-impl Mul for Rgb {
-    type Output = Rgb;
-
-    fn mul(self, rhs: Self) -> Self::Output {
-        Self(self.0 * rhs.0)
     }
 }
 

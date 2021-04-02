@@ -126,11 +126,6 @@ impl Vec3 {
     pub fn same_direction(self, other: Self) -> bool {
         self.dot(other) > 0.0
     }
-
-    /// Reflect this vector on a surface described by a normal.
-    pub fn reflect_on(self, normal: Vec3) -> Self {
-        self - 2.0 * self.dot(normal) * normal
-    }
 }
 
 impl Neg for Vec3 {
