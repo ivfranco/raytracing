@@ -4,7 +4,7 @@
 #![allow(clippy::clippy::upper_case_acronyms)]
 
 /// A trait generalizing image file types.
-pub mod builder;
+pub mod image_builder;
 
 /// Color types and color constants.
 pub mod color;

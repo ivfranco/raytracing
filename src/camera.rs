@@ -2,35 +2,114 @@ use rand::Rng;
 
 use crate::{ray::Ray, Vec3};
 
+/// Constructor of a camera.
+pub struct CameraBuilder {
+    look_from: Vec3,
+    look_at: Vec3,
+    v_up: Vec3,
+    v_fov: f64,
+    aspect_ratio: f64,
+}
+
+impl Default for CameraBuilder {
+    fn default() -> Self {
+        CameraBuilder {
+            look_from: Vec3::origin(),
+            look_at: Vec3::new(0.0, 0.0, -1.0),
+            v_up: Vec3::new(0.0, 1.0, 0.0),
+            v_fov: 90.0,
+            aspect_ratio: 16.0 / 9.0,
+        }
+    }
+}
+
+impl CameraBuilder {
+    /// Initialize a new builder for a camera.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the position of the camera.
+    ///
+    /// # Default:
+    /// (0, 0, 0), the original point
+    pub fn look_from(&mut self, look_from: Vec3) -> &mut Self {
+        self.look_from = look_from;
+        self
+    }
+
+    /// Set the direction the camera is looking at.
+    ///
+    /// # Default:
+    /// (0, 0, -1)
+    pub fn look_at(&mut self, look_at: Vec3) -> &mut Self {
+        self.look_at = look_at;
+        self
+    }
+
+    /// Set the roll of the camera by a view up vector.
+    ///
+    /// # Default:
+    /// (0, 1, 0)
+    pub fn v_up(&mut self, v_up: Vec3) -> &mut Self {
+        self.v_up = v_up;
+        self
+    }
+
+    /// Set the vertical field of view of the camera in degrees. The horizontal field of view will be
+    /// calculated from the vertical fov and the aspect ratio.
+    ///
+    /// # Default:
+    /// 90 degrees
+    pub fn v_fov(&mut self, v_fov: f64) -> &mut Self {
+        self.v_fov = v_fov;
+        self
+    }
+
+    /// Set the aspect ratio of the camera.
+    ///
+    /// # Default:
+    /// 16 / 9
+    pub fn aspect_ratio(&mut self, aspect_ratio: f64) -> &mut Self {
+        self.aspect_ratio = aspect_ratio;
+        self
+    }
+
+    /// Build the camera with the given parameters and defaults.
+    pub fn build(self) -> Camera {
+        let theta = self.v_fov.to_radians();
+        let h = (theta / 2.0).tan();
+        let viewport_height = 2.0 * h;
+        let viewport_width = self.aspect_ratio * viewport_height;
+
+        let w = (self.look_from - self.look_at).normalized();
+        let u = self.v_up.cross(w).normalized();
+        let v = w.cross(u);
+
+        let camera_origin = self.look_from;
+
+        let horizontal = viewport_width * u;
+        let vertical = viewport_height * v;
+        let viewport_origin = camera_origin - horizontal / 2.0 - vertical / 2.0 - w;
+
+        Camera {
+            camera_origin,
+            viewport_origin,
+            horizontal,
+            vertical,
+        }
+    }
+}
+
 /// A camera that may cast rays into the world.
 pub struct Camera {
     camera_origin: Vec3,
     viewport_origin: Vec3,
-    viewport_width: f64,
-    viewport_height: f64,
+    horizontal: Vec3,
+    vertical: Vec3,
 }
 
 impl Camera {
-    /// Construct a camera with the given aspect ratio and focal length. The camera is located at
-    /// the origin point (0, 0, 0);
-    pub fn new(v_fov: f64, aspect_ratio: f64, focal_length: f64) -> Self {
-        let theta = v_fov.to_radians();
-        let h = (theta / 2.0).tan();
-        let viewport_height = 2.0 * h;
-        let viewport_width = aspect_ratio * viewport_height;
-
-        let camera_origin = Vec3::origin();
-        let viewport_origin =
-            camera_origin - Vec3::new(viewport_width / 2.0, viewport_height / 2.0, focal_length);
-
-        Self {
-            camera_origin,
-            viewport_origin,
-            viewport_width,
-            viewport_height,
-        }
-    }
-
     /// Cast a ray pointing to the given horizontal and vertical ratio of the viewport, Starting
     /// from the bottom left corner.
     ///
@@ -41,10 +120,9 @@ impl Camera {
     /// // a ray pointing to the center of the viewport
     /// let ray = camera.get_ray(0.5, 0.5);
     /// ```
-    pub fn get_ray(&self, u: f64, v: f64) -> Ray {
-        let direction = self.viewport_origin
-            + Vec3::new(self.viewport_width * u, self.viewport_height * v, 0.0)
-            - self.camera_origin;
+    pub fn get_ray(&self, s: f64, t: f64) -> Ray {
+        let direction =
+            self.viewport_origin + s * self.horizontal + t * self.vertical - self.camera_origin;
 
         Ray::new(self.camera_origin, direction)
     }

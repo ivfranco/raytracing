@@ -3,10 +3,10 @@ use std::{fmt::Display, fs, path::Path, process};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use raytracing::{
-    builder::{ImageBuilder, PNGBuilder},
-    camera::Camera,
+    camera::{Camera, CameraBuilder},
     color::{Rgb, RgbAccumulator, BLACK, LIGHTBLUE, WHITE},
     hittable::Sphere,
+    image_builder::{ImageBuilder, PNGBuilder},
     material::{Dielectric, Lambertian, Metal},
     ray::Ray,
     world::{HitEvent, World},
@@ -25,8 +25,7 @@ fn exec() -> anyhow::Result<()> {
     let image_width = 600;
     let image_height = (image_width as f64 / aspect_ratio) as u32;
 
-    let focal_length = 1.0;
-    let camera = Camera::new(90.0, aspect_ratio, focal_length);
+    let camera = CameraBuilder::new().build();
 
     // geometries
     let world = {
