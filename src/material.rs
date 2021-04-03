@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::{distributions::Standard, prelude::Distribution, Rng};
 
 use crate::{
     color::{self, Rgb},
@@ -162,4 +162,23 @@ fn reflect(direction: Vec3, normal: Vec3) -> Vec3 {
 fn reflectance(cosine: f64, ref_idx: f64) -> f64 {
     let r0 = ((1.0 - ref_idx) / (1.0 + ref_idx)).powi(2);
     r0 + (1.0 - r0) * (1.0 - cosine).powi(5)
+}
+
+impl Distribution<Lambertian> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Lambertian {
+        Lambertian::new(rng.gen::<Rgb>() * rng.gen::<Rgb>())
+    }
+}
+
+impl Distribution<Metal> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Metal {
+        let albedo = Rgb::new(
+            rng.gen_range(0.5..1.0),
+            rng.gen_range(0.5..1.0),
+            rng.gen_range(0.5..1.0),
+        );
+        let fuzz = rng.gen_range(0.0..0.5);
+
+        Metal::new(albedo, fuzz)
+    }
 }

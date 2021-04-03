@@ -1,6 +1,7 @@
 use std::ops::Mul;
 
 use derive_more::{Add, AddAssign, Deref, Div, Mul};
+use rand::{distributions::Standard, prelude::Distribution};
 
 use crate::Vec3;
 
@@ -45,6 +46,12 @@ impl Mul<Rgb> for f64 {
 
     fn mul(self, rhs: Rgb) -> Self::Output {
         Rgb(self * rhs.0)
+    }
+}
+
+impl Distribution<Rgb> for Standard {
+    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Rgb {
+        Rgb(Vec3(rng.gen()))
     }
 }
 

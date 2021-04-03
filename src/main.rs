@@ -1,13 +1,14 @@
 use std::{fmt::Display, fs, path::Path, process};
 
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use indicatif::{ParallelProgressIterator, ProgressBar};
+use rand::{prelude::SliceRandom, rngs::StdRng, Rng, SeedableRng};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use raytracing::{
-    camera::{Camera, CameraBuilder},
+    camera::CameraBuilder,
     color::{Rgb, RgbAccumulator, BLACK, LIGHTBLUE, WHITE},
     hittable::Sphere,
     image_builder::{ImageBuilder, PNGBuilder},
-    material::{Dielectric, Lambertian, Metal},
+    material::{Dielectric, Lambertian, Material, Metal},
     ray::Ray,
     world::{HitEvent, World},
     Vec3,
@@ -21,75 +22,34 @@ fn main() {
 
 fn exec() -> anyhow::Result<()> {
     // image dimensions
-    let aspect_ratio = 16.0 / 9.0;
-    let image_width = 600;
+    let aspect_ratio = 3.0 / 2.0;
+    let image_width = 1200;
     let image_height = (image_width as f64 / aspect_ratio) as u32;
 
-    let camera = CameraBuilder::new().build();
+    const SAMPLE_PER_PIXEL: u32 = 500;
 
-    // geometries
-    let world = {
-        let mut world = World::new();
+    let camera = CameraBuilder::new()
+        .look_from(Vec3::new(13.0, 2.0, 3.0))
+        .look_at(Vec3::origin())
+        .aspect_ratio(aspect_ratio)
+        .focus_dist(10.0)
+        .v_fov(20.0)
+        .aperture(0.1)
+        .build();
 
-        // ground
-        world.add(
-            Sphere {
-                center: Vec3::new(0.0, -100.5, -1.0),
-                radius: 100.0,
-            },
-            Lambertian::new(Rgb::new(0.8, 0.8, 0.0)),
-        );
-
-        // central lambertian sphere
-        world.add(
-            Sphere {
-                center: Vec3::new(0.0, 0.0, -1.0),
-                radius: 0.5,
-            },
-            Lambertian::new(Rgb::new(0.1, 0.2, 0.5)),
-        );
-
-        let left_material = Dielectric::new(1.5);
-
-        // left dielectric sphere
-        world.add(
-            Sphere {
-                center: Vec3::new(-1.0, 0.0, -1.0),
-                radius: 0.5,
-            },
-            left_material,
-        );
-
-        // hollow core of left dielectric sphere
-        world.add(
-            Sphere {
-                center: Vec3::new(-1.0, 0.0, -1.0),
-                radius: -0.4,
-            },
-            left_material,
-        );
-
-        // right metal sphere
-        world.add(
-            Sphere {
-                center: Vec3::new(1.0, 0.0, -1.0),
-                radius: 0.5,
-            },
-            Metal::new(Rgb::new(0.8, 0.6, 0.2), 0.0),
-        );
-
-        world
-    };
+    let world = random_world(&mut rand::rngs::StdRng::from_entropy());
 
     let mut image_builder = PNGBuilder::with_dimensions(image_width, image_height);
 
-    const SAMPLE_PER_PIXEL: u32 = 100;
-
     let instant = std::time::Instant::now();
+
+    let progress = ProgressBar::new((image_width * image_height) as u64);
+    progress.set_draw_delta(1000);
 
     let samplers: Vec<_> = camera.cast(image_width, image_height).collect();
     let pixels: Vec<_> = samplers
         .par_iter()
+        .progress_with(progress.clone())
         .map(|sampler| {
             let mut acc = RgbAccumulator::new();
             let mut rng = StdRng::from_entropy();
@@ -104,6 +64,8 @@ fn exec() -> anyhow::Result<()> {
         })
         .collect();
 
+    progress.finish();
+
     for pixel in pixels {
         image_builder.put(pixel)?;
     }
@@ -116,6 +78,78 @@ fn exec() -> anyhow::Result<()> {
 
     println!("{:?}", instant.elapsed());
     Ok(())
+}
+
+fn random_world<R: Rng>(rng: &mut R) -> World {
+    let mut world = World::new();
+
+    let ground_material = Lambertian::new(Rgb::new(0.5, 0.5, 0.5));
+    let glass_material = Dielectric::new(1.5);
+
+    world.add(
+        Sphere {
+            center: Vec3::new(0.0, -1000.0, 0.0),
+            radius: 1000.0,
+        },
+        ground_material,
+    );
+
+    let empty_spot = Vec3::new(4.0, 0.2, 0.0);
+    let small_radius = 0.2;
+    let choices = [(0, 80), (1, 15), (2, 5)];
+
+    for (a, b) in (-11..11).flat_map(|a| (-11..11).map(move |b| (a, b))) {
+        let center = Vec3::new(
+            a as f64 + 0.9 * rng.gen::<f64>(),
+            0.2,
+            b as f64 + 0.9 * rng.gen::<f64>(),
+        );
+
+        if (center - empty_spot).norm() > 0.9 {
+            let material: Material = match choices.choose_weighted(rng, |(_, w)| *w).unwrap().0 {
+                0 => rng.gen::<Lambertian>().into(),
+                1 => rng.gen::<Metal>().into(),
+                2 => glass_material.into(),
+                _ => unreachable!(),
+            };
+
+            world.add(
+                Sphere {
+                    center,
+                    radius: small_radius,
+                },
+                material,
+            );
+        }
+    }
+
+    let big_radius = 1.0;
+
+    world.add(
+        Sphere {
+            center: Vec3::new(0.0, 1.0, 0.0),
+            radius: big_radius,
+        },
+        glass_material,
+    );
+
+    world.add(
+        Sphere {
+            center: Vec3::new(-4.0, 1.0, 0.0),
+            radius: big_radius,
+        },
+        Lambertian::new(Rgb::new(0.4, 0.2, 0.1)),
+    );
+
+    world.add(
+        Sphere {
+            center: Vec3::new(4.0, 1.0, 0.0),
+            radius: big_radius,
+        },
+        Metal::new(Rgb::new(0.7, 0.6, 0.5), 0.0),
+    );
+
+    world
 }
 
 fn error_exit<T: Display>(err: T) {

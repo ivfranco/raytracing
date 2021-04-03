@@ -9,6 +9,8 @@ pub struct CameraBuilder {
     v_up: Vec3,
     v_fov: f64,
     aspect_ratio: f64,
+    aperture: f64,
+    focus_dist: Option<f64>,
 }
 
 impl Default for CameraBuilder {
@@ -19,6 +21,8 @@ impl Default for CameraBuilder {
             v_up: Vec3::new(0.0, 1.0, 0.0),
             v_fov: 90.0,
             aspect_ratio: 16.0 / 9.0,
+            aperture: 0.0,
+            focus_dist: None,
         }
     }
 }
@@ -38,7 +42,7 @@ impl CameraBuilder {
         self
     }
 
-    /// Set the direction the camera is looking at.
+    /// Set the point the camera is looking at.
     ///
     /// # Default:
     /// (0, 0, -1)
@@ -75,8 +79,26 @@ impl CameraBuilder {
         self
     }
 
+    /// Set the aperture of the camera.
+    ///
+    /// # Default:
+    /// 0, no blur at all
+    pub fn aperture(&mut self, aperture: f64) -> &mut Self {
+        self.aperture = aperture;
+        self
+    }
+
+    /// Set the focus distant of the camera.
+    ///
+    /// # Default:
+    /// the distance between look_from and look_at.
+    pub fn focus_dist(&mut self, focus_dist: f64) -> &mut Self {
+        self.focus_dist.get_or_insert(focus_dist);
+        self
+    }
+
     /// Build the camera with the given parameters and defaults.
-    pub fn build(self) -> Camera {
+    pub fn build(&self) -> Camera {
         let theta = self.v_fov.to_radians();
         let h = (theta / 2.0).tan();
         let viewport_height = 2.0 * h;
@@ -88,15 +110,25 @@ impl CameraBuilder {
 
         let camera_origin = self.look_from;
 
-        let horizontal = viewport_width * u;
-        let vertical = viewport_height * v;
-        let viewport_origin = camera_origin - horizontal / 2.0 - vertical / 2.0 - w;
+        let focus_dist = self
+            .focus_dist
+            .unwrap_or_else(|| (self.look_from - self.look_at).norm());
+
+        let horizontal = focus_dist * viewport_width * u;
+        let vertical = focus_dist * viewport_height * v;
+        let viewport_origin = camera_origin - horizontal / 2.0 - vertical / 2.0 - focus_dist * w;
+
+        let lens_radius = self.aperture / 2.0;
 
         Camera {
             camera_origin,
             viewport_origin,
             horizontal,
             vertical,
+            lens_radius,
+            u,
+            v,
+            w,
         }
     }
 }
@@ -107,6 +139,10 @@ pub struct Camera {
     viewport_origin: Vec3,
     horizontal: Vec3,
     vertical: Vec3,
+    lens_radius: f64,
+    u: Vec3,
+    v: Vec3,
+    w: Vec3,
 }
 
 impl Camera {
@@ -115,21 +151,34 @@ impl Camera {
     ///
     /// # Examples
     /// ```
-    /// # use raytracing::camera::Camera;
-    /// let camera = Camera::new(1.0, 1.0);
+    /// # use raytracing::camera::CameraBuilder;
+    /// let camera = CameraBuilder::new().build();
     /// // a ray pointing to the center of the viewport
     /// let ray = camera.get_ray(0.5, 0.5);
     /// ```
-    pub fn get_ray(&self, s: f64, t: f64) -> Ray {
-        let direction =
-            self.viewport_origin + s * self.horizontal + t * self.vertical - self.camera_origin;
+    pub fn get_ray<R: Rng>(&self, rng: &mut R, s: f64, t: f64) -> Ray {
+        let random_look_from = self.lens_radius * random_in_unit_xy_disk(rng);
+        let offset = self.u * random_look_from.x() + self.v * random_look_from.y();
 
-        Ray::new(self.camera_origin, direction)
+        let direction = self.viewport_origin + s * self.horizontal + t * self.vertical
+            - self.camera_origin
+            - offset;
+
+        Ray::new(self.camera_origin + offset, direction)
     }
 
     /// Scan the image pixel by pixel, row by row from bottom to top.
     pub fn cast(&self, pixel_width: u32, pixel_height: u32) -> RayCaster {
         RayCaster::new(self, pixel_width, pixel_height)
+    }
+}
+
+fn random_in_unit_xy_disk<R: Rng>(rng: &mut R) -> Vec3 {
+    loop {
+        let p = Vec3::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0), 0.0);
+        if p.norm_squared() < 1.0 {
+            return p;
+        }
     }
 }
 
@@ -197,9 +246,9 @@ pub struct RaySampler<'a> {
 impl<'a> RaySampler<'a> {
     /// Samples a ray around the pixel.
     pub fn sample<R: Rng>(&self, rng: &mut R) -> Ray {
-        self.camera.get_ray(
-            self.x + self.dx * rng.gen::<f64>(),
-            self.y + self.dy * rng.gen::<f64>(),
-        )
+        let rx = self.x + self.dx * rng.gen::<f64>();
+        let ry = self.y + self.dy * rng.gen::<f64>();
+
+        self.camera.get_ray(rng, rx, ry)
     }
 }
