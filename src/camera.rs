@@ -146,15 +146,19 @@ pub struct Camera {
 }
 
 impl Camera {
-    /// Cast a ray pointing to the given horizontal and vertical ratio of the viewport, Starting
-    /// from the bottom left corner.
+    /// Cast a ray starting from a random position on the thin lense, pointing to the given
+    /// horizontal and vertical ratio of the viewport, where (0., 0.) is the bottom-left corner of
+    /// the viewport.
     ///
     /// # Examples
     /// ```
     /// # use raytracing::camera::CameraBuilder;
     /// let camera = CameraBuilder::new().build();
+    /// let mut rng = rand::thread_rng();
     /// // a ray pointing to the center of the viewport
-    /// let ray = camera.get_ray(0.5, 0.5);
+    /// let center = camera.get_ray(&mut rng, 0.5, 0.5);
+    /// // a ray pointing to the top-right corner of the viewport
+    /// let top_right = camera.get_ray(&mut rng, 1.0, 1.0);
     /// ```
     pub fn get_ray<R: Rng>(&self, rng: &mut R, s: f64, t: f64) -> Ray {
         let random_look_from = self.lens_radius * random_in_unit_xy_disk(rng);
