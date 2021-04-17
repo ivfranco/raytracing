@@ -1,10 +1,10 @@
-use std::mem;
+use std::{cmp, mem};
 
 use rand::Rng;
 
 use crate::{ray::Ray, Vec3};
 
-/// Describles when, where and how a ray hit an object.
+/// Describes when, where and how a ray hit an object.
 pub struct HitRecord {
     /// Where did the ray hit the object.
     pub hit_at: Vec3,
@@ -174,18 +174,25 @@ pub struct AABB {
 }
 
 impl AABB {
-    fn new(min: Vec3, max: Vec3) -> Self {
+    /// Construct a new AABB from two points in 3-dimensional space. The `min` point must have all
+    /// its dimensions smaller or equal to the `max` point.
+    pub fn new(min: Vec3, max: Vec3) -> Self {
+        for i in 0..3 {
+            assert!(min[i] <= max[i]);
+        }
+
         Self { min, max }
     }
 
-    fn hit(&self, ray: &Ray, mut t_min: f64, mut t_max: f64) -> bool {
+    /// Test if a ray hits an AABB.
+    pub fn hit(&self, ray: &Ray, mut t_min: f64, mut t_max: f64) -> bool {
         for i in 0..3 {
             let (t0, t1) = {
                 // When ray.direction[i] == 0.0, inv_d == infinity (positive or negative), if
                 // `self.min[i]` and `ray.origin()[i]` have different signs, the entire ray is in
-                // the AABB wrt. to ith dimension (i.e. [t0, t1] = (-infinity, +infiity)), otherwise
-                // the entire ray is out of the AABB wrt. to ith dimension (i.e. [t0, t1] =
-                // (-infinity, -infinity)).
+                // the AABB wrt. to ith dimension (i.e. [t0, t1] = (-infinity, +infinity)),
+                // otherwise the entire ray is not in the AABB wrt. to ith dimension (i.e. [t0, t1]
+                // = (-infinity, -infinity)).
                 let inv_d = 1.0 / ray.direction()[i];
                 let mut t0 = (self.min[i] - ray.origin()[i]) * inv_d;
                 let mut t1 = (self.max[i] - ray.origin()[i]) * inv_d;
@@ -206,5 +213,54 @@ impl AABB {
         }
 
         true
+    }
+
+    /// Merge two AABBs, return a bigger AABB containing the two given AABBs.
+    pub fn merge(&self, other: &Self) -> Self {
+        let mut min = Vec3::default();
+        let mut max = Vec3::default();
+
+        for i in 0..3 {
+            min[i] = self.min[i].min(other.min[i]);
+            max[i] = self.max[i].max(other.max[i]);
+        }
+
+        Self::new(min, max)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn aabb_hit() {
+        let aabb = AABB::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 1.0, 1.0));
+        let go_through_ray = Ray::new(Vec3::new(-1.0, -1.0, -1.0), Vec3::new(1.0, 1.0, 1.0));
+        assert!(aabb.hit(&go_through_ray, 0.0, f64::INFINITY));
+
+        let parallel_ray = Ray::new(Vec3::new(0.5, 0.5, -1.0), Vec3::new(0.0, 0.0, 1.0));
+        assert!(aabb.hit(&parallel_ray, 0.0, f64::INFINITY));
+    }
+
+    #[test]
+    fn aabb_bounding_sphere() {
+        let mut rng = rand::thread_rng();
+
+        let sphere = Sphere {
+            center: Vec3::new(1.0, 1.0, 1.0),
+            radius: 1.0,
+        };
+
+        let aabb = sphere.bounding_box().unwrap();
+
+        for _ in 0..100 {
+            let direction = Sphere::unit().random_point_on_surface(&mut rng);
+            let ray = Ray::new(Vec3::origin(), direction);
+
+            if sphere.hit(&ray, 0.0, f64::INFINITY).is_some() {
+                assert!(aabb.hit(&ray, 0.0, f64::INFINITY));
+            }
+        }
     }
 }
