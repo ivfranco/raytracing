@@ -23,10 +23,10 @@ fn main() {
 fn exec() -> anyhow::Result<()> {
     // image dimensions
     let aspect_ratio = 3.0 / 2.0;
-    let image_width = 1200;
+    let image_width = 400;
     let image_height = (image_width as f64 / aspect_ratio) as u32;
 
-    const SAMPLE_PER_PIXEL: u32 = 500;
+    const SAMPLE_PER_PIXEL: u32 = 50;
 
     let camera = CameraBuilder::new()
         .look_from(Vec3::new(13.0, 2.0, 3.0))

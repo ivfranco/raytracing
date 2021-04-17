@@ -1,3 +1,5 @@
+use std::mem;
+
 use rand::Rng;
 
 use crate::{ray::Ray, Vec3};
@@ -52,6 +54,10 @@ pub trait Hittable {
     /// Hit the object with a ray, return a hit record if the ray intersects the object within the
     /// given range of ray parameter [t_min, t_max].
     fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord>;
+
+    /// Return an Axis-Aligned Bounding Box (AABB) containing the hittable object if the object is
+    /// bounded. If a ray hits the object, it must also hit the bounding box.
+    fn bounding_box(&self) -> Option<AABB>;
 }
 
 /// An enum wrapping the boxed Hittable and a few named objects so methods of [Hittable](Hittable)
@@ -68,6 +74,13 @@ impl Hittable for HittableObject {
         match self {
             HittableObject::Sphere(sphere) => sphere.hit(ray, t_min, t_max),
             HittableObject::Object(obj) => obj.hit(ray, t_min, t_max),
+        }
+    }
+
+    fn bounding_box(&self) -> Option<AABB> {
+        match self {
+            HittableObject::Sphere(sphere) => sphere.bounding_box(),
+            HittableObject::Object(obj) => obj.bounding_box(),
         }
     }
 }
@@ -130,6 +143,14 @@ impl Hittable for Sphere {
         let normal = (ray.at(root) - self.center) / self.radius;
         Some(HitRecord::new(&ray, root, normal))
     }
+
+    fn bounding_box(&self) -> Option<AABB> {
+        let r = self.radius;
+        Some(AABB::new(
+            self.center - Vec3::new(r, r, r),
+            self.center + Vec3::new(r, r, r),
+        ))
+    }
 }
 
 fn random_unit<R: Rng>(rng: &mut R) -> Vec3 {
@@ -143,5 +164,47 @@ fn random_unit<R: Rng>(rng: &mut R) -> Vec3 {
         if p.norm_squared() < 1.0 {
             return p;
         }
+    }
+}
+
+/// An Axis-Aligned Bounding Box (AABB).
+pub struct AABB {
+    min: Vec3,
+    max: Vec3,
+}
+
+impl AABB {
+    fn new(min: Vec3, max: Vec3) -> Self {
+        Self { min, max }
+    }
+
+    fn hit(&self, ray: &Ray, mut t_min: f64, mut t_max: f64) -> bool {
+        for i in 0..3 {
+            let (t0, t1) = {
+                // When ray.direction[i] == 0.0, inv_d == infinity (positive or negative), if
+                // `self.min[i]` and `ray.origin()[i]` have different signs, the entire ray is in
+                // the AABB wrt. to ith dimension (i.e. [t0, t1] = (-infinity, +infiity)), otherwise
+                // the entire ray is out of the AABB wrt. to ith dimension (i.e. [t0, t1] =
+                // (-infinity, -infinity)).
+                let inv_d = 1.0 / ray.direction()[i];
+                let mut t0 = (self.min[i] - ray.origin()[i]) * inv_d;
+                let mut t1 = (self.max[i] - ray.origin()[i]) * inv_d;
+                if inv_d < 0.0 {
+                    mem::swap(&mut t0, &mut t1);
+                }
+                (t0, t1)
+            };
+
+            // narrow the possible range of t by the calculated range along ith axis
+            t_min = t0.max(t_min);
+            t_max = t1.min(t_max);
+
+            if t_max <= t_min {
+                // the possible range of t is now empty
+                return false;
+            }
+        }
+
+        true
     }
 }
