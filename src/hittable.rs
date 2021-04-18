@@ -1,4 +1,4 @@
-use std::{cmp, mem};
+use std::mem;
 
 use rand::Rng;
 
@@ -50,6 +50,12 @@ impl HitRecord {
 }
 
 /// An object that may be hit by and reflect a ray.
+///
+/// # Deviation from C++ code
+/// A hittable object doesn't have a build-in material. Main reason for this is I use the geometries
+/// in some way not related to materials at all, for example a more intuitive interface to generate
+/// random point in / on spheres (see
+/// [Sphere::random_point_in_sphere](Sphere::random_point_in_sphere)).
 pub trait Hittable {
     /// Hit the object with a ray, return a hit record if the ray intersects the object within the
     /// given range of ray parameter [t_min, t_max].
@@ -168,16 +174,19 @@ fn random_unit<R: Rng>(rng: &mut R) -> Vec3 {
 }
 
 /// An Axis-Aligned Bounding Box (AABB).
+#[derive(Clone)]
 pub struct AABB {
-    min: Vec3,
-    max: Vec3,
+    /// The min point of the box.
+    pub min: Vec3,
+    /// The max point of the box.
+    pub max: Vec3,
 }
 
 impl AABB {
     /// Construct a new AABB from two points in 3-dimensional space. The `min` point must have all
     /// its dimensions smaller or equal to the `max` point.
     pub fn new(min: Vec3, max: Vec3) -> Self {
-        for i in 0..3 {
+        for i in 0..Vec3::DIMENSIONS {
             assert!(min[i] <= max[i]);
         }
 
@@ -186,7 +195,7 @@ impl AABB {
 
     /// Test if a ray hits an AABB.
     pub fn hit(&self, ray: &Ray, mut t_min: f64, mut t_max: f64) -> bool {
-        for i in 0..3 {
+        for i in 0..Vec3::DIMENSIONS {
             let (t0, t1) = {
                 // When ray.direction[i] == 0.0, inv_d == infinity (positive or negative), if
                 // `self.min[i]` and `ray.origin()[i]` have different signs, the entire ray is in
@@ -220,7 +229,7 @@ impl AABB {
         let mut min = Vec3::default();
         let mut max = Vec3::default();
 
-        for i in 0..3 {
+        for i in 0..Vec3::DIMENSIONS {
             min[i] = self.min[i].min(other.min[i]);
             max[i] = self.max[i].max(other.max[i]);
         }

@@ -160,6 +160,12 @@ impl Camera {
     /// // a ray pointing to the top-right corner of the viewport
     /// let top_right = camera.get_ray(&mut rng, 1.0, 1.0);
     /// ```
+    ///
+    /// # Deviation from C++ code
+    /// All the following functionalities have been extracted to their own object:
+    /// - camera construction
+    /// - iteration over pixels in a viewport
+    /// - sampling rays around a pixel
     pub fn get_ray<R: Rng>(&self, rng: &mut R, s: f64, t: f64) -> Ray {
         let random_look_from = self.lens_radius * random_in_unit_xy_disk(rng);
         let offset = self.u * random_look_from.x() + self.v * random_look_from.y();

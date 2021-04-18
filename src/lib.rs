@@ -42,6 +42,14 @@ pub enum Error {
     /// Value of color channel is not in the range 0.0 .. 1.0.
     #[error("Value of color channel not in range")]
     ColorOutOfRange,
+
+    /// An hittable object added to the Bounded Volume Hierarchies is not bounded.
+    #[error("Object not bounded")]
+    ObjectNotBounded,
+
+    /// Comparing two NaNs for order.
+    #[error("Comparing two NaNs for order")]
+    ComparingNan,
 }
 
 impl Debug for Error {
@@ -55,6 +63,9 @@ impl Debug for Error {
 pub struct Vec3([f64; 3]);
 
 impl Vec3 {
+    /// The number of dimensions described by the vector.  
+    pub const DIMENSIONS: usize = 3;
+
     /// Initialize the vector with 3 components.
     pub const fn new(e0: f64, e1: f64, e2: f64) -> Self {
         Self([e0, e1, e2])
@@ -193,3 +204,27 @@ macro_rules! impl_assign_op {
 impl_assign_op!(AddAssign, add_assign, +);
 impl_assign_op!(SubAssign, sub_assign, -);
 impl_assign_op!(DivAssign, div_assign, /);
+
+/// Totally ordered float point number.
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
+pub struct NonNan(f64);
+
+impl NonNan {
+    /// Assert that a float point number is not NaN.
+    pub fn new(f: f64) -> Result<Self, Error> {
+        if f.is_nan() {
+            Err(Error::ComparingNan)
+        } else {
+            Ok(Self(f))
+        }
+    }
+}
+
+impl Eq for NonNan {}
+
+#[allow(clippy::clippy::derive_ord_xor_partial_ord)]
+impl Ord for NonNan {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}

@@ -10,8 +10,8 @@ use raytracing::{
     image_builder::{ImageBuilder, PNGBuilder},
     material::{Dielectric, Lambertian, Material, Metal},
     ray::Ray,
-    world::{HitEvent, World},
-    Vec3,
+    world::{HitEvent, World, WorldBuilder},
+    Error, Vec3,
 };
 
 fn main() {
@@ -23,10 +23,10 @@ fn main() {
 fn exec() -> anyhow::Result<()> {
     // image dimensions
     let aspect_ratio = 3.0 / 2.0;
-    let image_width = 400;
+    let image_width = 1200;
     let image_height = (image_width as f64 / aspect_ratio) as u32;
 
-    const SAMPLE_PER_PIXEL: u32 = 50;
+    const SAMPLE_PER_PIXEL: u32 = 500;
 
     let camera = CameraBuilder::new()
         .look_from(Vec3::new(13.0, 2.0, 3.0))
@@ -37,7 +37,7 @@ fn exec() -> anyhow::Result<()> {
         .aperture(0.1)
         .build();
 
-    let world = random_world(&mut rand::rngs::StdRng::from_entropy());
+    let world = random_world(&mut rand::rngs::StdRng::from_entropy())?;
 
     let mut image_builder = PNGBuilder::with_dimensions(image_width, image_height);
 
@@ -80,13 +80,13 @@ fn exec() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn random_world<R: Rng>(rng: &mut R) -> World {
-    let mut world = World::new();
+fn random_world<R: Rng>(rng: &mut R) -> Result<World, Error> {
+    let mut builder = WorldBuilder::new();
 
     let ground_material = Lambertian::new(Rgb::new(0.5, 0.5, 0.5));
     let glass_material = Dielectric::new(1.5);
 
-    world.add(
+    builder.add(
         Sphere {
             center: Vec3::new(0.0, -1000.0, 0.0),
             radius: 1000.0,
@@ -113,7 +113,7 @@ fn random_world<R: Rng>(rng: &mut R) -> World {
                 _ => unreachable!(),
             };
 
-            world.add(
+            builder.add(
                 Sphere {
                     center,
                     radius: small_radius,
@@ -125,7 +125,7 @@ fn random_world<R: Rng>(rng: &mut R) -> World {
 
     let big_radius = 1.0;
 
-    world.add(
+    builder.add(
         Sphere {
             center: Vec3::new(0.0, 1.0, 0.0),
             radius: big_radius,
@@ -133,7 +133,7 @@ fn random_world<R: Rng>(rng: &mut R) -> World {
         glass_material,
     );
 
-    world.add(
+    builder.add(
         Sphere {
             center: Vec3::new(-4.0, 1.0, 0.0),
             radius: big_radius,
@@ -141,7 +141,7 @@ fn random_world<R: Rng>(rng: &mut R) -> World {
         Lambertian::new(Rgb::new(0.4, 0.2, 0.1)),
     );
 
-    world.add(
+    builder.add(
         Sphere {
             center: Vec3::new(4.0, 1.0, 0.0),
             radius: big_radius,
@@ -149,7 +149,7 @@ fn random_world<R: Rng>(rng: &mut R) -> World {
         Metal::new(Rgb::new(0.7, 0.6, 0.5), 0.0),
     );
 
-    world
+    builder.build()
 }
 
 fn error_exit<T: Display>(err: T) {
